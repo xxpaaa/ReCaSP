@@ -35,29 +35,22 @@ def trusted_loss(evidence, y, c, class_num, global_step, annealing_step, reducti
     for i in range(censor_num):
         for j in range(class_num):
             labels_dict[str(i) + "," + str(j)] = i*class_num + j
-    # labels_dict = {"0,0": 0, "0,1": 1, "0,2": 2, "0,3": 3, "1,0": 4, "1,1": 5, "1,2": 6, "1,3": 7}
 
     class_num = class_num*censor_num
 
     y = y.type(torch.int64) # ground truth bin, 1,2,...,k
     c = c.type(torch.int64) #censorship status, 0 or 1
 
-    # 检查是否为标量
     if y.dim() == 0:
         y = y.unsqueeze(0)
-    # 检查是否为标量
+  
     if c.dim() == 0:
         c = c.unsqueeze(0)
-
-    # print("labels_dict: ", labels_dict) #labels_dict:  {'0,0': 0, '0,1': 1, '0,2': 2, '0,3': 3, '1,0': 4, '1,1': 5, '1,2': 6, '1,3': 7}
-    # print("y.shape: ", y.shape) #y.shape:  torch.Size([32])
-    # print("c.shape: ", c.shape) #c.shape:  torch.Size([32])
 
     labels_indices = [labels_dict[str(int(c_item)) + "," + str(int(y_item))] for c_item, y_item in zip(c, y)]
     labels_indices = torch.tensor(labels_indices).to(y.device)
 
     alpha = evidence + 1
-    # print("alpha.shape: ", alpha.shape, alpha)
     loss = ce_loss(labels_indices, alpha, class_num, global_step, annealing_step)
 
     if reduction == 'mean':
@@ -70,7 +63,7 @@ def trusted_loss(evidence, y, c, class_num, global_step, annealing_step, reducti
     return loss
 
 
-class TrustedSurvLoss(object): #这里结合 https://github.com/mahmoodlab/Patch-GCN/blob/master/utils/utils.py, https://github.com/mahmoodlab/SurvPath/blob/main/utils/loss_func.py和https://github.com/hanmenghan/TMC/blob/main/TMC%20ICLR/model.py改的
+class TrustedSurvLoss(object): 
     """
         The Cross-Entropy Loss function for the discrete time to event model (Zadeh and Schmid, 2020).
 
@@ -103,7 +96,7 @@ class TrustedSurvLoss(object): #这里结合 https://github.com/mahmoodlab/Patch
         return loss, loss1, loss2
 
 
-class NLLSurvLoss(nn.Module): #from https://github.com/mahmoodlab/SurvPath/blob/main/utils/loss_func.py
+class NLLSurvLoss(nn.Module):
     """
     The negative log-likelihood loss function for the discrete time to event model (Zadeh and Schmid, 2020).
     Code borrowed from https://github.com/mahmoodlab/Patch-GCN/blob/master/utils/utils.py
@@ -166,10 +159,8 @@ def nll_loss(h, y, c, alpha=0.0, eps=1e-7, reduction='sum'):
     c = c.type(torch.int64)
 
     hazards = torch.sigmoid(h) #hazard function
-    # print("hazards shape", hazards.shape)
 
     S = torch.cumprod(1 - hazards, dim=1)
-    # print("S.shape", S.shape, S)
 
     S_padded = torch.cat([torch.ones_like(c), S], 1)
     # S(-1) = 0, all patients are alive from (-inf, 0) by definition
@@ -177,23 +168,14 @@ def nll_loss(h, y, c, alpha=0.0, eps=1e-7, reduction='sum'):
     # hazards[y] = hazards(1)
     # S[1] = S(1)
 
-    # print("S_padded.shape", S_padded.shape, S_padded)
-
-
     s_prev = torch.gather(S_padded, dim=1, index=y).clamp(min=eps)
     h_this = torch.gather(hazards, dim=1, index=y).clamp(min=eps)
     s_this = torch.gather(S_padded, dim=1, index=y+1).clamp(min=eps)
-    # print('s_prev.s_prev', s_prev.shape, s_prev)
-    # print('h_this.shape', h_this.shape, h_this)
-    # print('s_this.shape', s_this.shape, s_this)
 
     # c = 1 means censored. Weight 0 in this case 
     uncensored_loss = -(1 - c) * (torch.log(s_prev) + torch.log(h_this))
     censored_loss = - c * torch.log(s_this)
     
-
-    # print('uncensored_loss.shape', uncensored_loss.shape)
-    # print('censored_loss.shape', censored_loss.shape)
 
     neg_l = censored_loss + uncensored_loss
     if alpha is not None:
